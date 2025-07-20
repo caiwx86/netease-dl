@@ -122,7 +122,7 @@ public class MusicDownloadService {
 				throw new ServiceException(CommonRespInfo.SYS_ERROR.getCode(), errorMsg);
 			}
 			
-			String fileName = musicInfo.getName();
+			String fileName = musicInfo.getAr_name() + "-" + musicInfo.getName();
 			String fileExtension = getFileExtension(musicInfo.getUrl());
 			String audioFilePath = downloadPath + "/" + fileName + fileExtension;
 
@@ -201,7 +201,7 @@ public class MusicDownloadService {
 		}
 		
 		String dir = path + analysisSingleMusic.getAl_name();
-		String fileName = analysisSingleMusic.getName();
+		String fileName = analysisSingleMusic.getAr_name() + "-" + analysisSingleMusic.getName();
 		String audioFilePath = dir + "/" + fileName + getFileExtension(analysisSingleMusic.getUrl());
 		
 		// 校验文件是否存在且完整
@@ -357,7 +357,7 @@ public class MusicDownloadService {
 				downloadTaskService.updateProgress(taskId, songName, false);
 				throw new ServiceException(CommonRespInfo.SYS_ERROR.getCode(), errorMsg);
 			}
-			String fileName = musicInfo.getName();
+			String fileName = musicInfo.getAr_name() + "-" + musicInfo.getName();
 			String fileExtension = getFileExtension(musicInfo.getUrl());
 			String audioFilePath = downloadPath + "/" + fileName + fileExtension;
 			java.io.File audioFile = new java.io.File(audioFilePath);
