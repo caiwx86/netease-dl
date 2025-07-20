@@ -64,7 +64,19 @@ public class AudioMetadataService {
                 mp3file.setId3v2Tag(id3v2Tag);
             }
             setCommonMetadata(id3v2Tag, musicInfo);
-            mp3file.save(audioFilePath);
+            // 1. 保存到临时文件
+            String tempFilePath = audioFilePath + ".tmp";
+            mp3file.save(tempFilePath);
+            // 2. 删除原文件
+            File original = new File(audioFilePath);
+            if (!original.delete()) {
+                log.warn("删除原MP3文件失败: {}", audioFilePath);
+            }
+            // 3. 重命名临时文件为原文件名
+            File temp = new File(tempFilePath);
+            if (!temp.renameTo(original)) {
+                log.warn("重命名临时MP3文件失败: {} -> {}", tempFilePath, audioFilePath);
+            }
             log.info("MP3元数据写入完成: {}", audioFilePath);
         } catch (Exception e) {
             log.error("MP3元数据写入失败: {}", audioFilePath, e);
