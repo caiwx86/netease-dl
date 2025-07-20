@@ -122,7 +122,7 @@ public class MusicDownloadService {
 				throw new ServiceException(CommonRespInfo.SYS_ERROR.getCode(), errorMsg);
 			}
 			
-			String fileName = musicInfo.getAr_name() + "-" + musicInfo.getName();
+			String fileName = sanitizeFileName(musicInfo.getAr_name()) + "-" + sanitizeFileName(musicInfo.getName());
 			String fileExtension = getFileExtension(musicInfo.getUrl());
 			String audioFilePath = downloadPath + "/" + fileName + fileExtension;
 
@@ -200,8 +200,8 @@ public class MusicDownloadService {
 			throw new ServiceException(CommonRespInfo.SYS_ERROR);
 		}
 		
-		String dir = path + analysisSingleMusic.getAl_name();
-		String fileName = analysisSingleMusic.getAr_name() + "-" + analysisSingleMusic.getName();
+		String dir = path + sanitizeFileName(analysisSingleMusic.getAl_name());
+		String fileName = sanitizeFileName(analysisSingleMusic.getAr_name()) + "-" + sanitizeFileName(analysisSingleMusic.getName());
 		String audioFilePath = dir + "/" + fileName + getFileExtension(analysisSingleMusic.getUrl());
 		
 		// 校验文件是否存在且完整
@@ -357,7 +357,7 @@ public class MusicDownloadService {
 				downloadTaskService.updateProgress(taskId, songName, false);
 				throw new ServiceException(CommonRespInfo.SYS_ERROR.getCode(), errorMsg);
 			}
-			String fileName = musicInfo.getAr_name() + "-" + musicInfo.getName();
+			String fileName = sanitizeFileName(musicInfo.getAr_name()) + "-" + sanitizeFileName(musicInfo.getName());
 			String fileExtension = getFileExtension(musicInfo.getUrl());
 			String audioFilePath = downloadPath + "/" + fileName + fileExtension;
 			java.io.File audioFile = new java.io.File(audioFilePath);
@@ -390,4 +390,10 @@ public class MusicDownloadService {
 			log.error("下载歌曲失败: {} - {}", songName, e.getMessage(), e);
 		}
 	}
+
+    private String sanitizeFileName(String name) {
+        if (name == null) return "";
+        // 替换常见非法字符: \/:*?"<>| 以及控制字符
+        return name.replaceAll("[\\\\/:*?\"<>|\r\n\t]", "_");
+    }
 }
