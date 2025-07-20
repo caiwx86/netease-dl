@@ -1,4 +1,4 @@
-FROM adoptopenjdk/openjdk17:ubuntu-jre-nightly
+FROM jokers/jre17:ubuntu24
 MAINTAINER pewee 20250617
 RUN mkdir -p /app/java/  /media/music
 ENV auther=pewee
