@@ -409,6 +409,28 @@ public class HttpClientUtil {
         return get;
     }
     
+    /**
+     * 推荐：安全获取InputStream并自动关闭，防止连接池泄漏
+     */
+    public static <T> T getInputStreamWithHandler(String url, Map<String, String> headers, java.util.function.Function<InputStream, T> handler) {
+        if (headers == null) headers = new HashMap<>();
+        HttpGet get = new HttpGet(url);
+        headers.forEach(get::addHeader);
+        get.setConfig(rc);
+        try (CloseableHttpResponse response = httpClient.execute(get)) {
+            HttpEntity entity = response.getEntity();
+            try (InputStream content = entity.getContent()) {
+                return handler.apply(content);
+            }
+        } catch (Exception e) {
+            log.error("getInputStreamWithHandler error: {}", e.getMessage(), e);
+            return null;
+        }
+    }
+
+    /**
+     * 兼容旧用法：调用者必须手动关闭InputStream，否则会导致连接池耗尽
+     */
     public static InputStream getInputStream(String url,Map<String,String> headers){
 		if(null == headers) {
 			headers = new HashMap<>();
@@ -424,6 +446,7 @@ public class HttpClientUtil {
 			CloseableHttpResponse response = httpClient.execute(get);
 			HttpEntity entity = response.getEntity();
 			InputStream content = entity.getContent();
+			// 调用者必须用完后手动关闭content和response
 			return content;
 		}	catch (ClientProtocolException e) {
 			log.error(e.getMessage(),e);

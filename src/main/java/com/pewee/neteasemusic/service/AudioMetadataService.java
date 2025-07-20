@@ -197,10 +197,15 @@ public class AudioMetadataService {
     }
 
     private byte[] downloadImage(String imageUrl) {
-        try (InputStream inputStream = HttpClientUtil.getInputStream(imageUrl, null)) {
-            if (inputStream != null) {
-                return inputStream.readAllBytes();
-            }
+        try {
+            return HttpClientUtil.getInputStreamWithHandler(imageUrl, null, in -> {
+                try {
+                    return in.readAllBytes();
+                } catch (Exception e) {
+                    log.warn("图片流读取失败: {}", e.getMessage());
+                    return null;
+                }
+            });
         } catch (Exception e) {
             log.warn("下载图片失败: {}", e.getMessage());
         }

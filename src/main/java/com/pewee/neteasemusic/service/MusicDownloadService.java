@@ -145,8 +145,10 @@ public class MusicDownloadService {
 			
 			// 下载音频文件
 			log.info("开始下载歌曲: {} 到目录: {}", fileName, downloadPath);
-			FileUtils.writeToFile(Paths.get(downloadPath, fileName + fileExtension), 
-					HttpClientUtil.getInputStream(musicInfo.getUrl(), null));
+			HttpClientUtil.getInputStreamWithHandler(musicInfo.getUrl(), null, in -> {
+				FileUtils.writeToFile(Paths.get(downloadPath, fileName + fileExtension), in);
+				return null;
+			});
 			log.info("歌曲下载完成: {}", fileName);
 			
 			// 添加元数据
@@ -219,8 +221,10 @@ public class MusicDownloadService {
 		}
 		
 		log.info("开始下载歌曲: {} 到目录: {}", fileName, dir);
-		FileUtils.writeToFile(Paths.get(dir, fileName + getFileExtension(analysisSingleMusic.getUrl())), 
-				HttpClientUtil.getInputStream(analysisSingleMusic.getUrl(), null));
+		HttpClientUtil.getInputStreamWithHandler(analysisSingleMusic.getUrl(), null, in -> {
+			FileUtils.writeToFile(Paths.get(dir, fileName + getFileExtension(analysisSingleMusic.getUrl())), in);
+			return null;
+		});
 		log.info("歌曲下载完成: {}", fileName);
 		
 		// 添加元数据
@@ -376,7 +380,10 @@ public class MusicDownloadService {
 			}
 			log.info("开始下载歌曲: {} 到目录: {}", fileName, downloadPath);
 			downloadTaskService.updateTrackProgress(taskId, songName, 30, "DOWNLOADING", null);
-			FileUtils.writeToFile(Paths.get(downloadPath, fileName + fileExtension), HttpClientUtil.getInputStream(musicInfo.getUrl(), null));
+			HttpClientUtil.getInputStreamWithHandler(musicInfo.getUrl(), null, in -> {
+				FileUtils.writeToFile(Paths.get(downloadPath, fileName + fileExtension), in);
+				return null;
+			});
 			log.info("歌曲下载完成: {}", fileName);
 			downloadTaskService.updateTrackProgress(taskId, songName, 70, "DOWNLOADING", null);
 			log.info("开始为歌曲: {} 添加元数据", fileName);
