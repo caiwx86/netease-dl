@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>网易云音乐二维码登录</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <style>
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(135deg, #e0e7ff 0%, #f8fafc 100%);
+            font-family: 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Arial', sans-serif;
+        }
+        body {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .login-container {
+            background: #fff;
+            border-radius: 18px;
+            box-shadow: 0 8px 32px rgba(60, 60, 120, 0.12), 0 1.5px 6px rgba(0,0,0,0.04);
+            padding: 40px 32px 32px 32px;
+            min-width: 320px;
+            max-width: 90vw;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            transition: box-shadow 0.2s;
+        }
+        .login-title {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #2d3748;
+            margin-bottom: 10px;
+            letter-spacing: 1px;
+        }
+        .login-desc {
+            font-size: 1rem;
+            color: #64748b;
+            margin-bottom: 18px;
+        }
+        .qr-img {
+            width: 220px;
+            height: 220px;
+            border-radius: 16px;
+            box-shadow: 0 2px 12px rgba(60,60,120,0.10);
+            background: #f1f5f9;
+            margin-bottom: 18px;
+            object-fit: contain;
+            border: 1.5px solid #e0e7ef;
+            transition: opacity 0.3s;
+        }
+        .qr-img.loading {
+            opacity: 0.6;
+        }
+        #status {
+            min-height: 32px;
+            font-size: 1.08rem;
+            color: #2563eb;
+            background: #f1f5ff;
+            border-radius: 6px;
+            padding: 8px 16px;
+            margin-bottom: 10px;
+            margin-top: 0;
+            text-align: center;
+            box-shadow: 0 1px 3px rgba(60,60,120,0.04);
+            transition: color 0.2s, background 0.2s;
+        }
+        .refresh-btn {
+            background: #2563eb;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            padding: 8px 16px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: background 0.2s;
+            margin-top: 8px;
+        }
+        .refresh-btn:hover {
+            background: #1d4ed8;
+        }
+        .refresh-btn:disabled {
+            background: #94a3b8;
+            cursor: not-allowed;
+        }
+        .repo-link {
+            color: #64748b;
+            font-size: 0.98rem;
+            margin-bottom: 10px;
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+        .repo-link:hover {
+            color: #2563eb;
+        }
+        @media (max-width: 480px) {
+            .login-container {
+                padding: 18px 4vw 18px 4vw;
+                min-width: unset;
+            }
+            .qr-img {
+                width: 60vw;
+                height: 60vw;
+                min-width: 140px;
+                min-height: 140px;
+                max-width: 90vw;
+                max-height: 90vw;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-title">🎵 网易云音乐扫码登录</div>
+        <a class="repo-link" href="https://github.com/pewee-live/netease-dl" target="_blank">项目地址: github.com/pewee-live/netease-dl</a>
+        <div class="login-desc">请使用 <b>网易云音乐APP</b> 扫描下方二维码登录</div>
+        <input type="hidden" id="unikey-value" th:value="${unikey}">
+        <img id="qrImage" class="qr-img" th:src="${qrImageBase64}" alt="二维码加载失败" />
+        <div id="status">正在检查二维码状态...</div>
+        <button id="refreshBtn" class="refresh-btn" style="display: none;">刷新二维码</button>
+    </div>
+    <script type="text/javascript">
+        const unikey = document.getElementById("unikey-value").value;
+        const statusDiv = document.getElementById("status");
+        const qrImg = document.getElementById("qrImage");
+        const refreshBtn = document.getElementById("refreshBtn");
+
+        let polling = true;
+        let pollInterval = null;
+        let consecutiveErrors = 0;
+        let lastStatusCode = null;
+        let qrGeneratedTime = Date.now();
+        const QR_EXPIRE_TIME = 5 * 60 * 1000; // 5分钟过期时间
+
+        // 智能轮询间隔配置
+        const POLL_INTERVALS = {
+            WAITING: 3000,    // 等待扫码：3秒
+            SCANNED: 2000,    // 已扫码：2秒
+            SUCCESS: 500,     // 登录成功：0.5秒（更快响应）
+            ERROR: 5000,      // 错误状态：5秒
+            EXPIRED: 15000    // 过期状态：15秒
+        };
+
+        function updateStatus(message, type = 'info') {
+            statusDiv.innerText = message;
+            
+            // 根据类型设置样式
+            switch(type) {
+                case 'success':
+                    statusDiv.style.color = '#16a34a';
+                    statusDiv.style.background = '#f0fdf4';
+                    break;
+                case 'warning':
+                    statusDiv.style.color = '#f59e42';
+                    statusDiv.style.background = '#fff7ed';
+                    break;
+                case 'error':
+                    statusDiv.style.color = '#dc2626';
+                    statusDiv.style.background = '#fef2f2';
+                    break;
+                case 'info':
+                default:
+                    statusDiv.style.color = '#2563eb';
+                    statusDiv.style.background = '#f1f5ff';
+                    break;
+            }
+        }
+
+        function setPollingInterval(interval) {
+            if (pollInterval) {
+                clearInterval(pollInterval);
+            }
+            if (polling && interval > 0) {
+                pollInterval = setInterval(pollQrStatus, interval);
+            }
+        }
+
+        function refreshQrCode() {
+            qrImg.classList.add('loading');
+            refreshBtn.disabled = true;
+            updateStatus('正在刷新二维码...', 'info');
+            
+            // 重新加载页面获取新的二维码
+            setTimeout(() => {
+                location.reload();
+            }, 1000);
+        }
+
+        function redirectToHome() {
+            updateStatus('登录成功，正在跳转...', 'success');
+            polling = false;
+            if (pollInterval) {
+                clearInterval(pollInterval);
+            }
+            
+            // 多次尝试跳转，确保成功
+            setTimeout(() => {
+                window.location.href = '/home';
+            }, 500);
+            
+            // 备用跳转方案
+            setTimeout(() => {
+                if (window.location.pathname !== '/home') {
+                    window.location.replace('/home');
+                }
+            }, 1500);
+            
+            // 最终备用方案
+            setTimeout(() => {
+                if (window.location.pathname !== '/home') {
+                    window.location.href = window.location.origin + '/home';
+                }
+            }, 2500);
+        }
+
+        function pollQrStatus() {
+            if (!polling) return;
+
+            // 检查二维码是否过期（基于时间）
+            const now = Date.now();
+            if (now - qrGeneratedTime > QR_EXPIRE_TIME) {
+                updateStatus('二维码已过期，正在刷新...', 'error');
+                polling = false;
+                setTimeout(refreshQrCode, 1500);
+                return;
+            }
+
+            axios.get('/qr/status2', { 
+                params: { unikey: unikey },
+                timeout: 10000 // 10秒超时
+            })
+            .then(response => {
+                consecutiveErrors = 0; // 重置错误计数
+                const code = response.data.code;
+                const message = response.data.message || '';
+                
+                // 如果状态码没有变化，使用更长的轮询间隔
+                if (code === lastStatusCode) {
+                    if (code === 801) { // 等待扫码状态
+                        setPollingInterval(POLL_INTERVALS.WAITING);
+                    }
+                } else {
+                    lastStatusCode = code;
+                }
+
+                switch(code) {
+                    case 800: // 二维码过期
+                        updateStatus('二维码已过期，正在刷新...', 'error');
+                        setPollingInterval(POLL_INTERVALS.EXPIRED);
+                        polling = false;
+                        setTimeout(refreshQrCode, 2000);
+                        break;
+                        
+                    case 801: // 等待扫码
+                        updateStatus('请使用网易云APP扫码', 'info');
+                        setPollingInterval(POLL_INTERVALS.WAITING);
+                        break;
+                        
+                    case 802: // 已扫码，等待确认
+                        updateStatus('已扫码，请在手机确认登录', 'warning');
+                        setPollingInterval(POLL_INTERVALS.SCANNED);
+                        break;
+                        
+                    case 803: // 登录成功
+                        redirectToHome();
+                        break;
+                        
+                    default:
+                        updateStatus(message || '未知状态，请刷新重试', 'error');
+                        setPollingInterval(POLL_INTERVALS.ERROR);
+                        break;
+                }
+            })
+            .catch(error => {
+                consecutiveErrors++;
+                console.error('二维码状态检查失败:', error);
+                
+                if (consecutiveErrors >= 3) {
+                    updateStatus('网络连接异常，请检查网络后刷新页面', 'error');
+                    refreshBtn.style.display = 'block';
+                    setPollingInterval(POLL_INTERVALS.ERROR);
+                } else {
+                    updateStatus('网络连接异常，正在重试...', 'warning');
+                    setPollingInterval(POLL_INTERVALS.ERROR);
+                }
+            });
+        }
+
+        // 绑定刷新按钮事件
+        refreshBtn.addEventListener('click', refreshQrCode);
+
+        // 页面加载时立即开始轮询
+        pollQrStatus();
+        
+        // 设置初始轮询间隔
+        setPollingInterval(POLL_INTERVALS.WAITING);
+
+        // 页面卸载时清理定时器
+        window.addEventListener('beforeunload', () => {
+            polling = false;
+            if (pollInterval) {
+                clearInterval(pollInterval);
+            }
+        });
+    </script>
+</body>
+</html>
